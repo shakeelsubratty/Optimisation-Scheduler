@@ -77,8 +77,6 @@ def allocate(employees, payrolls, due_date):
 
     toggle_do_not_reallocate = False
 
-    start_time = time.time()
-
     model = cp_model.CpModel()
 
     num_employees = len(employees)
@@ -121,15 +119,17 @@ def allocate(employees, payrolls, due_date):
     employee_allocated_payroll_times = {}
     employee_possible_payroll_processing_times = {}
     for e in all_employees:
-        employee_allocated_payroll_times[employees[e].get_name()] = employees[e].get_allocated_payrolls_time_7days_from_due_date(due_date)
+        employee_allocated_payroll_times[employees[e].get_name()] = employees[e].get_allocated_payrolls_total_time()
         employee_possible_payroll_processing_times[employees[e].get_name()] = sum(payrolls[p].get_processing_time() * x[p][e] for p in
                    all_payrolls)
 
     # Constraint
-    [model.Add(employee_possible_payroll_processing_times[employees[e].get_name()] + employees[e].get_allocated_payrolls_total_time() <= employees[e].get_max_hours()) for e in all_employees]
+    [model.Add((employee_possible_payroll_processing_times[employees[e].get_name()] + employee_allocated_payroll_times[employees[e].get_name()] <= employees[e].get_max_hours())) for e in all_employees]
+
+    [model.Add((employee_possible_payroll_processing_times[employees[e].get_name()] <= 2100 - employees[e].get_allocated_payrolls_time_7days_from_due_date(due_date))) for e in all_employees]
 
     # Constraint -
-    [model.Add(employee_possible_payroll_processing_times[employees[e].get_name()] <= 2100 - employee_allocated_payroll_times[employees[e].get_name()]) for e in all_employees]
+    # [model.Add((employee_possible_payroll_processing_times[employees[e].get_name()] + employee_allocated_payroll_times[employees[e].get_name()] <= employees[e].get_max_hours()) and (employee_possible_payroll_processing_times[employees[e].get_name()] <= 2100 - employees[e].get_allocated_payrolls_time_7days_from_due_date(due_date))) for e in all_employees]
 
     # Constraint - payroll technicality <= employee technicality
     [model.Add(payrolls[p].get_technicality() * x[p][e] <= employees[e].get_technicality()) for p in
@@ -147,8 +147,6 @@ def allocate(employees, payrolls, due_date):
     status = solver.Solve(model)
 
     print(status)
-
-    # print(time.time() - start_time)
 
     if status == cp_model.MODEL_SAT or status == cp_model.OPTIMAL:
         output = []
@@ -169,8 +167,11 @@ def allocate(employees, payrolls, due_date):
 
 def main():
     employees, payrolls = import_data()
+    start_time = time.time()
     for date in payrolls:
         allocate(employees, payrolls[date], date)
+    print(time.time() - start_time)
+
     # allocate(employees, payrolls[1])
     # allocate(employees, payrolls[5])
 
