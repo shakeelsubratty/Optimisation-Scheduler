@@ -36,24 +36,22 @@ class PartialSolutionPrinter(cp_model.CpSolverSolutionCallback):
     def solution_count(self):
         return self._solution_count
 
-def import_data():
-    input_spreadsheet = pd.ExcelFile('Optimisation_Spreadsheet_v1.xlsx')
+def import_employees(input_spreadsheet):
     input_employees = pd.read_excel(input_spreadsheet, 'Employees')
-    input_payrolls = pd.read_excel(input_spreadsheet, 'Payrolls')
-
     employees = []
-    payrolls = {}
-
-    due_dates = []
-
     for e in range(len(input_employees)):
         employee = Employee(input_employees.loc[e, 'Employee'], input_employees.loc[e, 'Team'],
                             input_employees.loc[e, 'Role'], input_employees.loc[e, 'Technicality'],
                             input_employees.loc[e, 'Monthly Minutes'],
                             input_employees.loc[e, 'Availability in Minutes'])
         employees.append(employee)
+    return employees
 
-    for p in range(len(input_payrolls)):
+def import_payrolls(input_spreadsheet, start, end):
+    input_payrolls = pd.read_excel(input_spreadsheet, 'Payrolls')
+    payrolls = {}
+    due_dates = []
+    for p in range(start,end):
         due_date = input_payrolls.loc[p, 'Due date'].day
         due_dates.append(due_date)
 
@@ -62,7 +60,7 @@ def import_data():
     for date in due_dates:
         payrolls[date] = []
 
-    for p in range(len(input_payrolls)):
+    for p in range(start,end):
         due_date = input_payrolls.loc[p, 'Due date'].day
         payroll = Payroll(input_payrolls.loc[p, 'Payroll'],
                           input_payrolls.loc[p, 'Prev. Employee'],
@@ -71,7 +69,7 @@ def import_data():
                           input_payrolls.loc[p, 'Time in Minutes'],
                           input_payrolls.loc[p, 'Do not reallocate Flag'] == 'Y')
         payrolls[due_date].append(payroll)
-    return employees, payrolls
+    return payrolls, len(input_payrolls)
 
 def allocate(employees, payrolls, due_date):
 
@@ -126,7 +124,7 @@ def allocate(employees, payrolls, due_date):
     # Constraint
     [model.Add((employee_possible_payroll_processing_times[employees[e].get_name()] + employee_allocated_payroll_times[employees[e].get_name()] <= employees[e].get_max_hours())) for e in all_employees]
 
-    [model.Add((employee_possible_payroll_processing_times[employees[e].get_name()] <= 2100 - employees[e].get_allocated_payrolls_time_7days_from_due_date(due_date))) for e in all_employees]
+    [model.Add((employee_possible_payroll_processing_times[employees[e].get_name()] <= 2100 - employees[e].get_allocated_payrolls_time_7days_from_due_date())) for e in all_employees]
 
     # Constraint -
     # [model.Add((employee_possible_payroll_processing_times[employees[e].get_name()] + employee_allocated_payroll_times[employees[e].get_name()] <= employees[e].get_max_hours()) and (employee_possible_payroll_processing_times[employees[e].get_name()] <= 2100 - employees[e].get_allocated_payrolls_time_7days_from_due_date(due_date))) for e in all_employees]
@@ -137,9 +135,9 @@ def allocate(employees, payrolls, due_date):
 
     print("Constraints intialised")
 
-    model.Minimize(sum(
-        (employees[e].get_technicality() - payrolls[p].get_technicality()) * x[p][e] for e in all_employees for p in
-        all_payrolls))
+    # model.Minimize(sum(
+    #     (employees[e].get_technicality() - payrolls[p].get_technicality()) * x[p][e] for e in all_employees for p in
+    #     all_payrolls))
 
     solver = cp_model.CpSolver()
     # solution_printer = PartialSolutionPrinter(x, num_employees, num_payrolls, range(10))
@@ -161,15 +159,32 @@ def allocate(employees, payrolls, due_date):
                     output.append([employees[e].get_name(), employees[e].get_technicality(), payrolls[p].get_id(),
                                    payrolls[p].get_technicality(), payrolls[p].get_processing_time(),
                                    payrolls[p].get_due_date()])
-            employees[e].allocate_payrolls(allocated_payrolls)
+            employees[e].allocate_payrolls(allocated_payrolls, due_date)
             print(employees[e].get_allocated_payrolls_total_time())
 
 
 def main():
-    employees, payrolls = import_data()
+    input_spreadsheet = pd.ExcelFile('Optimisation_Spreadsheet_v1.xlsx')
+
+    employees = import_employees(input_spreadsheet)
     start_time = time.time()
+
+
+    payrolls, max_index = import_payrolls(input_spreadsheet, 1, 500)
+
     for date in payrolls:
         allocate(employees, payrolls[date], date)
+
+    payrolls, max_index = import_payrolls(input_spreadsheet, 501, 1000)
+
+    for date in payrolls:
+        allocate(employees, payrolls[date], date)
+
+    payrolls, max_index = import_payrolls(input_spreadsheet, 1001, 1319)
+
+    for date in payrolls:
+        allocate(employees, payrolls[date], date)
+
     print(time.time() - start_time)
 
     # allocate(employees, payrolls[1])
