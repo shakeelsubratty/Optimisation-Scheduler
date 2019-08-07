@@ -5,6 +5,8 @@ import time
 import numpy as np
 import sys
 
+from pandas import ExcelWriter
+from openpyxl import load_workbook
 from employee import Employee
 from payroll import Payroll
 
@@ -45,6 +47,7 @@ def import_payrolls(input_spreadsheet, start, end):
                               input_payrolls.loc[p, 'Do not reallocate Flag'] == 'Y')
         except ValueError:
             print("VALUEERROR: ", input_payrolls.loc[p, 'Payroll'])
+            return
 
         payrolls[due_date].append(payroll)
     return payrolls, len(input_payrolls)
@@ -81,7 +84,6 @@ def allocate(employees, payrolls, due_date, count):
                 y.append(model.NewIntVar(0, 1, "x[%i,%i]" % (e, p)))
         print(y)
         x.append(y)
-    # print(x)
 
     print("Clearing Employee 2 day turnover period")
     for e in all_employees:
@@ -105,13 +107,14 @@ def allocate(employees, payrolls, due_date, count):
         employee_possible_payroll_processing_times[employees[e].get_name()] = sum(
             payrolls[p].get_processing_time() * x[p][e] for p in
             all_payrolls)
-        employee_allocated_payroll_times_2days_from_due_date[employees[e].get_name()] = employees[e].get_allocated_payrolls_time_2days_from_due_date()
+        employee_allocated_payroll_times_2days_from_due_date[employees[e].get_name()] = employees[
+            e].get_allocated_payrolls_time_2days_from_due_date()
+
     # Constraint
     [model.Add((employee_possible_payroll_processing_times[employees[e].get_name()] + employee_allocated_payroll_times[
         employees[e].get_name()] <= employees[e].get_max_hours())) for e in all_employees]
 
-
-    if(due_date == 21 or due_date == 26):
+    if (due_date == 21):
         print("p")
         [model.Add((employee_possible_payroll_processing_times[employees[e].get_name()] <= 1160 -
                     employee_allocated_payroll_times_2days_from_due_date[employees[e].get_name()])) for e in
@@ -121,8 +124,6 @@ def allocate(employees, payrolls, due_date, count):
                     employee_allocated_payroll_times_2days_from_due_date[employees[e].get_name()])) for e in
          all_employees]
 
-    if (due_date == 23):
-        print("p")
     # Constraint - payroll technicality <= employee technicality
     [model.Add(payrolls[p].get_technicality() * x[p][e] <= employees[e].get_technicality()) for p in
      all_payrolls for e in all_employees]
@@ -152,33 +153,44 @@ def allocate(employees, payrolls, due_date, count):
                     output.append([employees[e].get_name(), employees[e].get_technicality(), payrolls[p].get_id(),
                                    payrolls[p].get_technicality(), payrolls[p].get_processing_time(),
                                    payrolls[p].get_due_date()])
-            employees[e].allocate_payrolls(allocated_payrolls,due_date)
+            employees[e].allocate_payrolls(allocated_payrolls, due_date)
             print(employees[e].get_allocated_payrolls_total_time())
     return count
+
+
 def main():
     input_spreadsheet = pd.ExcelFile('Optimisation_Spreadsheet_v3.xlsx')
 
     employees = import_employees(input_spreadsheet)
     start_time = time.time()
     count = 0
+    due_dates = []
 
     payrolls, max_index = import_payrolls(input_spreadsheet, 0, 500)
 
     for date in payrolls:
-       count = allocate(employees, payrolls[date], date, count)
+        count = allocate(employees, payrolls[date], date, count)
+        if date not in due_dates:
+            due_dates.append(date)
 
     payrolls, max_index = import_payrolls(input_spreadsheet, 501, 1000)
 
     for date in payrolls:
         count = allocate(employees, payrolls[date], date, count)
+        if date not in due_dates:
+            due_dates.append(date)
 
     payrolls, max_index = import_payrolls(input_spreadsheet, 1001, 1234)
 
     for date in payrolls:
         count = allocate(employees, payrolls[date], date, count)
+        if date not in due_dates:
+            due_dates.append(date)
 
     print(time.time() - start_time)
     print("COUNT", count)
+
+    # Allocation output
     output = []
     count = 0
     for e in employees:
@@ -192,7 +204,27 @@ def main():
                              columns=['Employee', 'Employee Technicality', 'Payroll', 'Payroll Technicality',
                                       'Processing Time', 'Due date'])
     print(output_df)
-    output_spreadsheet = pd.ExcelFile('Optimisation_Allocation_v3.xlsx')
-    output_df.to_excel(output_spreadsheet, "Allocation")
+
+    # Employee/time surface output
+    due_dates.sort()
+    output_surface = []
+    for date in due_dates:
+        sum_of_mins = 0
+        capacity_util = 0
+        for e in employees:
+            for p in e.get_allocated_payrolls():
+                if p.get_due_date() == date:
+                    sum_of_mins += p.get_processing_time()
+        output_surface.append([date, sum_of_mins])
+    output_surface_df = pd.DataFrame(output_surface, columns=['Due Date', 'Sum of mins'])
+
+    with ExcelWriter('Optimisation_Allocation_v3.xlsx', engine='openpyxl') as writer:
+        book = load_workbook('Optimisation_Allocation_v3.xlsx')
+        writer.book = book
+        writer.sheets = dict((ws.title, ws) for ws in book.worksheets)
+
+        output_df.to_excel(writer, "Allocation")
+        output_surface_df.to_excel(writer, "Emp vs Time Surface")
+        writer.save()
 
 main()
