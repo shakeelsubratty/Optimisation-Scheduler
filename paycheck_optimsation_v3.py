@@ -4,6 +4,7 @@ import pandas as pd
 import time
 import numpy as np
 import sys
+import easygui
 
 from pandas import ExcelWriter
 from openpyxl import load_workbook
@@ -15,10 +16,17 @@ def import_employees(input_spreadsheet):
     input_employees = pd.read_excel(input_spreadsheet, 'Employees')
     employees = []
     for e in range(len(input_employees)):
-        employee = Employee(input_employees.loc[e, 'Employee'], input_employees.loc[e, 'Team'],
-                            input_employees.loc[e, 'Role'], input_employees.loc[e, 'Technicality'],
-                            input_employees.loc[e, 'Monthly Minutes'],
-                            input_employees.loc[e, 'Availability in Minutes'])
+        try:
+            employee = Employee(input_employees.loc[e, 'Employee'], input_employees.loc[e, 'Team'],
+                                input_employees.loc[e, 'Role'], int(input_employees.loc[e, 'Technicality']),
+                                int(input_employees.loc[e, 'Monthly Minutes']),
+                                int(input_employees.loc[e, 'Availability in Minutes']))
+        except ValueError:
+            print("VALUEERROR: ", input_employees.loc[e, 'Employee'])
+            easygui.msgbox(
+                "An error has occured! Missing value for Employee: %s. Script terminating early, please fix and try again." % (
+                    input_employees.loc[e, 'Employee']), "Missing value error")
+            raise
         employees.append(employee)
     return employees
 
@@ -39,8 +47,22 @@ def import_payrolls(input_payrolls, start, end):
     unique_due_dates = input_payrolls['Unique Due Dates'].dropna().tolist()
     capacities = input_payrolls['Capacity per person'].dropna().tolist()
 
+    if len(unique_due_dates) != len(capacities):
+        print("TABLEERROR")
+        easygui.msgbox(
+            "An error has occured! Missing values for Unique Due Dates / Capacities. Script terminating early, please fix and try again.",
+            "Missing table entry error")
+        return
+
     for i in range(0, len(capacities)):
         due_date_capacities[unique_due_dates[i].day] = int(capacities[i])
+
+    if all(elem in payrolls.keys() for elem in due_date_capacities.keys()):
+        print("TABLEERROR")
+        easygui.msgbox(
+            "An error has occured! Missing values for Unique Due Dates / Capacities. Script terminating early, please fix and try again.",
+            "Missing table entry error")
+        return
 
     print(due_date_capacities)
 
@@ -51,11 +73,14 @@ def import_payrolls(input_payrolls, start, end):
                               input_payrolls.loc[p, 'Prev. Employee'],
                               int(input_payrolls.loc[p, 'Technicality']), due_date,
                               input_payrolls.loc[p, 'Paydate'], input_payrolls.loc[p, 'Data sent date'],
-                              input_payrolls.loc[p, 'Time in Minutes'],
+                              int(input_payrolls.loc[p, 'Time in Minutes']),
                               input_payrolls.loc[p, 'Do not reallocate Flag'] == 'Y')
         except ValueError:
             print("VALUEERROR: ", input_payrolls.loc[p, 'Payroll'])
-            return
+            easygui.msgbox(
+                "An error has occured! Missing value for Payroll: %s. Script terminating early, please fix and try again." % (
+                    input_payrolls.loc[p, 'Payroll']), "Missing value error")
+            raise
 
         payrolls[due_date].append(payroll)
     return payrolls, len(input_payrolls), due_date_capacities
@@ -153,7 +178,34 @@ def allocate(employees, payrolls, due_date_capacities, due_date, count):
 
 
 def main():
-    input_spreadsheet = pd.ExcelFile('Optimisation_Spreadsheet_v3.xlsx')
+    try:
+        input_spreadsheet = pd.ExcelFile('Optimisation_Spreadsheet_v3.xlsx')
+    except FileNotFoundError:
+        print("FileNotFound")
+        easygui.msgbox(
+            "An error has occured! Input spreadsheet has not been found. Ensure a file named %s exists in the same directory as the script and try again." % (
+                "Optimisation_Spreadsheet_v3.xlsx"), "File not found error")
+        raise
+
+    try:
+        writer = ExcelWriter('Optimisation_Allocation_v3.xlsx', engine='openpyxl')
+        book = load_workbook('Optimisation_Allocation_v3.xlsx')
+        writer.book = book
+        writer.sheets = dict((ws.title, ws) for ws in book.worksheets)
+
+        df_empty_allocation = pd.DataFrame(columns=['Employee', 'Employee Technicality', 'Payroll', 'Payroll Technicality',
+                                      'Processing Time', 'Due date'])
+        df_empty_allocation.to_excel(writer, "Allocation")
+        df_empty_surface = pd.DataFrame(columns=['Due Date', 'Sum of mins', 'Capacity', 'Capacity Utilisation'])
+        df_empty_surface.to_excel(writer, "Emp vs Time Surface")
+
+    except (FileNotFoundError, KeyError):
+        print("FileNotFound")
+        easygui.msgbox(
+            "An error has occured! Input spreadsheet has not been found. Ensure a file named %s exists in the same directory as the script and try again." % (
+                "Optimisation_Allocation_v3.xlsx"), "File not found error")
+        raise
+
     input_payrolls = pd.read_excel(input_spreadsheet, 'Payrolls')
 
     total_number_of_payrolls = len(input_payrolls)
@@ -180,7 +232,7 @@ def main():
                     due_dates.append(date)
 
     print("Time taken: ", time.time() - start_time)
-    print("COUNT", count)
+    print("COUNT: ", count, "Number of payrolls: ", total_number_of_payrolls)
 
     # Allocation output
     output = []
@@ -218,14 +270,10 @@ def main():
     output_surface_df = pd.DataFrame(output_surface,
                                      columns=['Due Date', 'Sum of mins', 'Capacity', 'Capacity Utilisation'])
 
-    with ExcelWriter('Optimisation_Allocation_v3.xlsx', engine='openpyxl') as writer:
-        book = load_workbook('Optimisation_Allocation_v3.xlsx')
-        writer.book = book
-        writer.sheets = dict((ws.title, ws) for ws in book.worksheets)
-
-        output_df.to_excel(writer, "Allocation")
-        output_surface_df.to_excel(writer, "Emp vs Time Surface")
-        writer.save()
+    # with ExcelWriter('Optimisation_Allocation_v3.xlsx', engine='openpyxl') as writer:
+    output_df.to_excel(writer, "Allocation")
+    output_surface_df.to_excel(writer, "Emp vs Time Surface")
+    writer.save()
 
 
 main()
