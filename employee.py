@@ -32,11 +32,6 @@ class Employee:
         return self.total_allocated_time
 
     def get_allocated_payrolls_time_2days_from_due_date(self):
-        # total_time = 0
-        # for payroll in self.allocated_payrolls:
-        #     if payroll.get_due_date() >= payroll_due_date:
-        #         total_time += payroll.get_processing_time()
-        # return total_time
         return self.two_days_prior_processing_time
 
     def allocate_payrolls(self, payrolls, date):
