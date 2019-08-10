@@ -24,7 +24,8 @@ def import_employees(input_spreadsheet):
         except ValueError:
             print("VALUEERROR: ", input_employees.loc[e, 'Employee'])
             easygui.msgbox(
-                "An error has occured! Missing value for Employee: %s. Script terminating early, please fix and try again." % (
+                "An error has occured! Missing value for Employee: %s. "
+                "\nScript terminating early, please fix and try again." % (
                     input_employees.loc[e, 'Employee']), "Missing value error")
             raise
         employees.append(employee)
@@ -50,7 +51,8 @@ def import_payrolls(input_payrolls, start, end):
     if len(unique_due_dates) != len(capacities):
         print("TABLEERROR")
         easygui.msgbox(
-            "An error has occured! Missing values for Unique Due Dates / Capacities. Script terminating early, please fix and try again.",
+            "An error has occured! Missing values for Unique Due Dates / Capacities. "
+            "\nScript terminating early, please fix and try again.",
             "Missing table entry error")
         return
 
@@ -60,7 +62,8 @@ def import_payrolls(input_payrolls, start, end):
     if all(elem in payrolls.keys() for elem in due_date_capacities.keys()):
         print("TABLEERROR")
         easygui.msgbox(
-            "An error has occured! Missing values for Unique Due Dates / Capacities. Script terminating early, please fix and try again.",
+            "An error has occured! Missing values for Unique Due Dates / Capacities. "
+            "\nScript terminating early, please fix and try again.",
             "Missing table entry error")
         return
 
@@ -78,7 +81,8 @@ def import_payrolls(input_payrolls, start, end):
         except ValueError:
             print("VALUEERROR: ", input_payrolls.loc[p, 'Payroll'])
             easygui.msgbox(
-                "An error has occured! Missing value for Payroll: %s. Script terminating early, please fix and try again." % (
+                "An error has occured! Missing value for Payroll: %s. "
+                "\nScript terminating early, please fix and try again." % (
                     input_payrolls.loc[p, 'Payroll']), "Missing value error")
             raise
 
@@ -183,7 +187,8 @@ def main():
     except FileNotFoundError:
         print("FileNotFound")
         easygui.msgbox(
-            "An error has occured! Input spreadsheet has not been found. Ensure a file named %s exists in the same directory as the script and try again." % (
+            "An error has occured! Input spreadsheet has not been found. "
+            "\nEnsure a file named %s exists in the same directory as the script and try again." % (
                 "Optimisation_Spreadsheet_v3.xlsx"), "File not found error")
         raise
 
@@ -193,8 +198,9 @@ def main():
         writer.book = book
         writer.sheets = dict((ws.title, ws) for ws in book.worksheets)
 
-        df_empty_allocation = pd.DataFrame(columns=['Employee', 'Employee Technicality', 'Payroll', 'Payroll Technicality',
-                                      'Processing Time', 'Due date'])
+        df_empty_allocation = pd.DataFrame(
+            columns=['Employee', 'Employee Technicality', 'Payroll', 'Payroll Technicality',
+                     'Processing Time', 'Due date'])
         df_empty_allocation.to_excel(writer, "Allocation")
         df_empty_surface = pd.DataFrame(columns=['Due Date', 'Sum of mins', 'Capacity', 'Capacity Utilisation'])
         df_empty_surface.to_excel(writer, "Emp vs Time Surface")
@@ -202,7 +208,8 @@ def main():
     except (FileNotFoundError, KeyError):
         print("FileNotFound")
         easygui.msgbox(
-            "An error has occured! Input spreadsheet has not been found. Ensure a file named %s exists in the same directory as the script and try again." % (
+            "An error has occured! Input spreadsheet has not been found. "
+            "\nEnsure a file named %s exists in the same directory as the script and try again." % (
                 "Optimisation_Allocation_v3.xlsx"), "File not found error")
         raise
 
@@ -236,12 +243,26 @@ def main():
 
     # Allocation output
     output = []
+    output_payroll_ids = []
+    count_1 = 0
     for e in employees:
         for p in e.get_allocated_payrolls():
-            count += 1
+            count_1 += 1
             output.append([e.get_name(), e.get_technicality(), p.get_id(),
                            p.get_technicality(), p.get_processing_time(),
                            p.get_due_date()])
+            output_payroll_ids.append(p.get_id())
+    print(count_1)
+
+    failed_to_allocate = []
+    for elem in input_payrolls['Payroll']:
+        if elem not in output_payroll_ids:
+            failed_to_allocate.append(elem)
+
+    if len(failed_to_allocate) > 0:
+        msg = "The following payrolls could not be allocated: " + str(failed_to_allocate) \
+              + " \nPlease try again or allocate them manually."
+        easygui.msgbox(msg)
     output_df = pd.DataFrame(output,
                              columns=['Employee', 'Employee Technicality', 'Payroll', 'Payroll Technicality',
                                       'Processing Time', 'Due date'])
@@ -270,7 +291,6 @@ def main():
     output_surface_df = pd.DataFrame(output_surface,
                                      columns=['Due Date', 'Sum of mins', 'Capacity', 'Capacity Utilisation'])
 
-    # with ExcelWriter('Optimisation_Allocation_v3.xlsx', engine='openpyxl') as writer:
     output_df.to_excel(writer, "Allocation")
     output_surface_df.to_excel(writer, "Emp vs Time Surface")
     writer.save()
