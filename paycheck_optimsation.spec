@@ -4,10 +4,10 @@ block_cipher = None
 
 
 a = Analysis(['paycheck_optimsation.py'],
-             pathex=['C:\\Users\\Shake\\Documents\\Work\\Projects\\Paycheck\\optimsation_venv\\Optimisation-Scheduler'],
+             pathex=['/Users/shakeelsubratty/PycharmProjects/optimisation/venv/src'],
              binaries=[],
              datas=[],
-             hiddenimports=[],
+             hiddenimports=['global_state'],
              hookspath=[],
              runtime_hooks=[],
              excludes=[],

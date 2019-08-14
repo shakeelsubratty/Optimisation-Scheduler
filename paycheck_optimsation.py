@@ -1,9 +1,9 @@
 # from __future__ import print_function
 from ortools.sat.python import cp_model
 import numpy as np
-import numpy.random.common
-import numpy.random.bounded_integers
-import numpy.random.entropy
+# import numpy.random.common
+# import numpy.random.bounded_integers
+# import numpy.random.entropy
 import pandas as pd
 import time
 import sys
@@ -37,18 +37,25 @@ def import_employees(input_employees):
                 "\nScript terminating early, please fix and try again." % (
                     input_employees.loc[e, 'Employee']), "Missing value error")
             raise
+        except KeyError:
+            print("KEYERROR")
+            easygui.msgbox(
+                "An error has occured! Columns in Employee sheet incorrectly named. "
+                "\nScript terminating early, please fix and try again.",
+                "Incorrect column name error")
+            raise
         employees.append(employee)
     return employees
 
 
 """
-Import Payrolls function - takes input_payrolls dataframe between between start and end indices, and returns list of Payroll objects 
+Import Payrolls function - takes input_payrolls dataframe between between start and end indices, and returns list of Payroll objects
 
 Params:
 	input_payrolls - input dataframe
 	start - index (row) to start from in Payroll dataframe
 	end - index (row) to end at in payroll dataframe
-Returns: 
+Returns:
 	payrolls - list of Payrolls objects
 	len(input_payrolls) - number of payrolls imported
 	due_date_capacities - dictionary containing the assigned capacity per employee for each payroll due date
@@ -62,7 +69,15 @@ def import_payrolls(input_payrolls, start, end):
 
     # Find unique due dates between start and end date, sort dates ASC
     for p in range(start, end):
-        due_date = input_payrolls.loc[p, 'Due date'].day
+        try:
+            due_date = input_payrolls.loc[p, 'Due date'].day
+        except KeyError:
+            print("KEYERROR")
+            easygui.msgbox(
+                "An error has occured! Due date column incorrectly named. "
+                "\nScript terminating early, please fix and try again.",
+                "Incorrect column name error")
+            raise
         due_dates.append(due_date)
     due_dates.sort()
 
@@ -71,8 +86,16 @@ def import_payrolls(input_payrolls, start, end):
         payrolls[date] = []
 
     # Pull unique due dates and capacities from payroll spreadsheet. Drop null values and convert to lists.
-    unique_due_dates = input_payrolls['Unique Due Dates'].dropna().tolist()
-    capacities = input_payrolls['Capacity per person'].dropna().tolist()
+    try:
+        unique_due_dates = input_payrolls['Unique Due Dates'].dropna().tolist()
+        capacities = input_payrolls['Capacity per person'].dropna().tolist()
+    except KeyError:
+        print("KEYERROR")
+        easygui.msgbox(
+            "An error has occured! Unique Due Dates / Capacity per person columns incorrectly named. "
+            "\nScript terminating early, please fix and try again.",
+            "Incorrect column name error")
+        raise
 
     # Check each due date has a capacity assigned
     if len(unique_due_dates) != len(capacities):
@@ -100,8 +123,8 @@ def import_payrolls(input_payrolls, start, end):
 
     # For each payroll entry in range, attempt to create Payroll object and append to list on payrolls dictionary at that payroll's due date
     for p in range(start, end):
-        due_date = input_payrolls.loc[p, 'Due date'].day
         try:
+            due_date = int(input_payrolls.loc[p, 'Due date'].day)
             payroll = Payroll(input_payrolls.loc[p, 'Payroll'],
                               input_payrolls.loc[p, 'Prev. Employee'],
                               int(input_payrolls.loc[p, 'Technicality']), due_date,
@@ -115,6 +138,13 @@ def import_payrolls(input_payrolls, start, end):
                 "\nScript terminating early, please fix and try again." % (
                     input_payrolls.loc[p, 'Payroll']), "Missing value error")
             raise
+        except KeyError:
+            print("KEYERROR")
+            easygui.msgbox(
+                "An error has occured! Columns in Payroll sheet incorrectly named. "
+                "\nScript terminating early, please fix and try again.",
+                "Incorrect column name error")
+            raise
 
         payrolls[due_date].append(payroll)
     return payrolls, len(input_payrolls), due_date_capacities
@@ -122,7 +152,7 @@ def import_payrolls(input_payrolls, start, end):
 
 """
 Allocate function - constructs Constraint Progromming model, establishes constraints and performs allocation procedure.
-	Allocation is carried out for each individual due date seperately, given the lists of employees and payrolls due on that day and 
+	Allocation is carried out for each individual due date seperately, given the lists of employees and payrolls due on that day and
 	a two day turnover period prior to the current due date.
 	Allocation is stored in Employee local fields.
 
@@ -132,7 +162,7 @@ Params:
 	due_date_capacities - dictionary containing the assigned capacity per employee for each payroll due date
 	due_date - the due date of the payrolls being allocated
 	count - maintains a integer count of payrolls processed
-Returns: 
+Returns:
 	count - maintains a integer count of payrolls processed
 """
 
@@ -170,13 +200,14 @@ def allocate(employees, payrolls, due_date_capacities, due_date, count):
         print(y)
         x.append(y)
 
+    # Initialising Constraints
+    print("Initialising Constraints")
+
     # Remove any payrolls that are now outside each employee's two day turnover period
     for e in all_employees:
         employees[e].clear_allocated_payrolls_2_days_prior(due_date)
     print("Cleared employee two day turnover period")
 
-    # Initialising Constraints
-    print("Initialising Constraints")
 
     # Constraint - Every payroll assigned to at least one employee
     [model.Add(sum(x[p][e] for e in all_employees) == 1)
@@ -217,7 +248,7 @@ def allocate(employees, payrolls, due_date_capacities, due_date, count):
 
     # If solution found, append assignments to Employee object fields by calling <Employee>.allocate_payrolls(allocate_payrolls, due_date)
     print(status)
-    if status == cp_model.FEASIBLE or status == cp_model.OPTIMAL:
+    if status == cp_model.MODEL_SAT or status == cp_model.OPTIMAL:
         output = []
         for e in all_employees:
             print("Employee: ", employees[e].get_name(), " Technicality: ", employees[e].get_technicality())
@@ -270,7 +301,7 @@ def main():
     except (FileNotFoundError, KeyError):
         print("FileNotFound")
         easygui.msgbox(
-            "An error has occured! Input spreadsheet has not been found. "
+            "An error has occured! Output spreadsheet has not been found. "
             "\nEnsure a file named %s exists in the same directory as the script and try again." % (
                 "Optimisation_Allocation_v3.xlsx"), "File not found error")
         raise
