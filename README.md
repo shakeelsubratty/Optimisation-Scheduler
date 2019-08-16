@@ -34,7 +34,7 @@ If using this script in a new virtual environment (or not using virtualenv at al
 
 ``` pip install <dependency> ``` where \<dependency\> is as given above.
 
-If using this script with it's supplied virtual environment, simply activate the virtual environment with the following cmd/terminal command:
+If using this script with it's an existing virtual environment, simply activate the virtual environment with the following cmd/terminal command:
 
 ### Windows
 
@@ -65,10 +65,10 @@ To build the script into executable, run the command:
 
 On Windows, it has been found that pyinstaller fails to identify a number of hidden numpy dependencies. To alleviate this, a number of imports can be found at the top of the main file:
 
-``` 
+```
 # import numpy.random.common
 # import numpy.random.bounded_integers
-# import numpy.random.entropy 
+# import numpy.random.entropy
 ```
 
 If having trouble with building on Windows, uncommenting these imports should help.
@@ -80,4 +80,3 @@ The -D argument builds the executable into a single directory:
 ``` dist/paycheck_optimisation ```
 
 where the script can be accessed by running the paycheck_optimsation executable. Again, ensure that the required Excel files are in the same directory as the executable.
-
