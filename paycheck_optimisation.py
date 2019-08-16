@@ -1,6 +1,7 @@
 # from __future__ import print_function
 from ortools.sat.python import cp_model
 import numpy as np
+#  - Possibly necessary imports for building with Windows
 # import numpy.random.common
 # import numpy.random.bounded_integers
 # import numpy.random.entropy
@@ -13,6 +14,8 @@ from pandas import ExcelWriter
 from openpyxl import load_workbook
 from employee import Employee
 from payroll import Payroll
+
+# Paycheck optimisation script - uses a constraint programming solver to allocate payroll tasks to employees.
 
 """
 Import Employees function - takes input_employees dataframe, creates and returns list of Employee objects.
