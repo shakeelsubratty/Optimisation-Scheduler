@@ -24,7 +24,7 @@ The script relies on the following dependencies:
 
 * pandas
 * numpy
-* or-tools
+* or-tools (6.7.4973)
 * xlrd
 * openpyxl
 * easygui
